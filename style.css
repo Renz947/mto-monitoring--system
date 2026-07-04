@@ -1,0 +1,40 @@
+/* ====================================================================
+   🌟 CUSTOM DASHBOARD CORE STYLES (style.css)
+   ==================================================================== */
+
+body, aside, main, table, tr, th, td, input, select, button {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.light ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.sticky-header th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+input[type="date"], input[type="time"], select {
+    min-width: 110px;
+}

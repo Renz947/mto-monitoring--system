@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — MTO System Monitoring</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeInUp  { from { opacity:0; transform:translateY(28px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes shake     { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+        @keyframes pulse-ring{ 0%{transform:scale(.95);box-shadow:0 0 0 0 rgba(234,88,12,.5)} 70%{transform:scale(1);box-shadow:0 0 0 14px rgba(234,88,12,0)} 100%{transform:scale(.95);box-shadow:0 0 0 0 rgba(234,88,12,0)} }
+        @keyframes slideUp   { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes otpPop    { 0%{transform:scale(.8);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+
+        .animate-fade-up    { animation: fadeInUp  .55s ease-out both; }
+        .animate-shake      { animation: shake     .45s ease-out; }
+        .logo-pulse         { animation: pulse-ring 2.5s ease-in-out infinite; }
+        .animate-slide-up   { animation: slideUp   .3s  ease-out both; }
+        .otp-animate        { animation: otpPop    .4s  cubic-bezier(.34,1.56,.64,1) both; }
+
+        body,* { box-sizing:border-box; }
+        input:-webkit-autofill,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+            -webkit-text-fill-color: #f1f5f9 !important;
+            caret-color: #f1f5f9;
+        }
+
+        /* View system */
+        .view { display:none; }
+        .view.active { display:block; }
+
+        /* Strength bars */
+        .sbar { height:4px; border-radius:2px; transition:background-color .3s; background:#334155; }
+
+        /* OTP digit display */
+        .otp-digits { letter-spacing:.5em; font-family:monospace; font-size:1.8rem; font-weight:900; }
+
+        /* OTP input */
+        #otpInput { letter-spacing:.35em; text-align:center; font-size:1.4rem; font-weight:bold; }
+
+        /* Method card selected state */
+        .method-card.selected { border-color:rgb(249,115,22) !important; background:rgba(124,45,18,.18) !important; }
+        .method-card.selected .radio-outer { border-color:rgb(249,115,22) !important; }
+        .method-card.selected .radio-dot   { background:rgb(249,115,22) !important; }
+
+        /* Step progress */
+        .step-bar { height:3px; border-radius:2px; transition:background .35s; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 font-sans select-none"
+      style="background:radial-gradient(ellipse at 15% 40%,rgba(234,88,12,.10) 0%,transparent 55%),radial-gradient(ellipse at 85% 15%,rgba(99,102,241,.07) 0%,transparent 50%),radial-gradient(ellipse at 50% 85%,rgba(234,88,12,.06) 0%,transparent 50%),#020617;">
+
+    <!-- Blobs -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div class="absolute -top-40 -right-40 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange-900/5 rounded-full blur-[100px]"></div>
+    </div>
+
+    <!-- Wrapper -->
+    <div class="animate-fade-up relative w-full max-w-sm z-10">
+
+        <!-- Brand -->
+        <div class="text-center mb-7">
+            <div class="logo-pulse inline-flex items-center justify-center w-16 h-16 bg-orange-600 rounded-2xl shadow-2xl shadow-orange-600/50 mb-4 text-3xl">🌟</div>
+            <h1 class="text-[22px] font-black text-white tracking-widest leading-tight">MTO SYSTEM</h1>
+            <p class="text-orange-500 font-black text-xs tracking-[0.3em] uppercase mt-0.5">MONITORING</p>
+            <p class="text-slate-600 text-[10px] mt-1.5 tracking-wide">v2026 Core Executive • Logistics Division</p>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             VIEW 1 — LOGIN
+        ════════════════════════════════════════════════════════ -->
+        <div id="viewLogin" class="view active">
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl px-7 py-7 shadow-2xl shadow-black/60">
+                <h2 class="text-white font-black text-base mb-0.5">Sign In to Your Account</h2>
+                <p class="text-slate-500 text-[11px] mb-5">Enter your credentials to access the system</p>
+
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">👤 Username</label>
+                    <input id="loginUsername" type="text" placeholder="Enter your username" autocomplete="username"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔒 Password</label>
+                    <div class="relative">
+                        <input id="loginPassword" type="password" placeholder="Enter your password" autocomplete="current-password"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 pr-11 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                        <button type="button" onclick="togglePwd('loginPassword','eyeLogin')" id="eyeLogin"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors text-sm cursor-pointer px-1">👁</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 mb-4">
+                    <input id="rememberMe" type="checkbox" class="w-4 h-4 rounded accent-orange-500 cursor-pointer">
+                    <label for="rememberMe" class="text-slate-400 text-[11px] cursor-pointer">Remember this device (Stay logged in)</label>
+                </div>
+
+                <div id="loginError" class="hidden mb-4 px-4 py-3 bg-red-900/40 border border-red-700/60 rounded-xl">
+                    <p id="loginErrorMsg" class="text-red-400 text-xs font-bold text-center"></p>
+                </div>
+
+                <button type="button" id="loginBtn" onclick="doLogin()"
+                    class="w-full bg-orange-600 hover:bg-orange-700 active:scale-[.98] text-white font-black py-3.5 rounded-xl text-sm shadow-xl shadow-orange-600/30 transition-all cursor-pointer flex items-center justify-center gap-2">
+                    <span id="loginBtnLabel">🚀&nbsp; Sign In</span>
+                </button>
+
+                <!-- Nav links -->
+                <div class="flex items-center justify-between mt-5 pt-4 border-t border-slate-800">
+                    <button type="button" onclick="goTo('viewRegister')"
+                        class="flex items-center gap-1.5 text-orange-400 hover:text-orange-300 text-[11px] font-bold transition-colors cursor-pointer">
+                        ➕ Create Account
+                    </button>
+                    <button type="button" onclick="goTo('viewFP1')"
+                        class="text-slate-500 hover:text-slate-300 text-[11px] font-bold transition-colors cursor-pointer">
+                        🔑 Forgot Password?
+                    </button>
+                </div>
+            </div>
+
+            <!-- Default accounts hint -->
+            <div class="mt-4 bg-slate-900/50 border border-slate-800 rounded-xl px-4 py-3">
+                <p class="text-slate-600 text-[10px] font-black uppercase tracking-widest mb-2">📋 Default Accounts</p>
+                <table class="w-full text-[10px] text-slate-600">
+                    <thead><tr>
+                        <th class="text-left font-bold text-slate-700 pb-1 pr-3">Username</th>
+                        <th class="text-left font-bold text-slate-700 pb-1 pr-3">Password</th>
+                        <th class="text-left font-bold text-slate-700 pb-1">Role</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <tr><td class="py-1 pr-3 font-mono text-orange-700">admin</td><td class="py-1 pr-3 font-mono">MTO@2026</td><td class="py-1 text-slate-500">Administrator</td></tr>
+                        <tr><td class="py-1 pr-3 font-mono text-orange-700">supervisor</td><td class="py-1 pr-3 font-mono">Super@2026</td><td class="py-1 text-slate-500">Supervisor</td></tr>
+                        <tr><td class="py-1 pr-3 font-mono text-orange-700">operator</td><td class="py-1 pr-3 font-mono">Oper@2026</td><td class="py-1 text-slate-500">Operator</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             VIEW 2 — CREATE ACCOUNT
+        ════════════════════════════════════════════════════════ -->
+        <div id="viewRegister" class="view">
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl px-7 py-7 shadow-2xl shadow-black/60">
+                <!-- Header -->
+                <div class="flex items-center gap-3 mb-5">
+                    <button type="button" onclick="goTo('viewLogin')" class="text-slate-500 hover:text-white text-xl cursor-pointer transition-colors leading-none">←</button>
+                    <div>
+                        <h2 class="text-white font-black text-base leading-tight">Create Account</h2>
+                        <p class="text-slate-500 text-[11px]">You can create unlimited accounts</p>
+                    </div>
+                </div>
+
+                <!-- Full Name -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">👤 Full Name *</label>
+                    <input id="regName" type="text" placeholder="Full name"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+                <!-- Username -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🏷️ Username *</label>
+                    <input id="regUser" type="text" placeholder="no spaces (letters, numbers, _)"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+                <!-- Email -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">📧 Email Address *</label>
+                    <input id="regEmail" type="email" placeholder="example@email.com"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+                <!-- Phone -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">📱 Phone / Mobile *</label>
+                    <input id="regPhone" type="tel" placeholder="09XXXXXXXXX  or  +639XXXXXXXXX"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+                <!-- Password -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔒 Password *</label>
+                    <div class="relative">
+                        <input id="regPwd" type="password" placeholder="Minimum 8 characters" oninput="evalStrength()"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 pr-11 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                        <button type="button" onclick="togglePwd('regPwd','eyeReg')" id="eyeReg"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-sm cursor-pointer px-1">👁</button>
+                    </div>
+                    <div class="flex gap-1 mt-2">
+                        <div class="sbar flex-1" id="sb1"></div>
+                        <div class="sbar flex-1" id="sb2"></div>
+                        <div class="sbar flex-1" id="sb3"></div>
+                        <div class="sbar flex-1" id="sb4"></div>
+                    </div>
+                    <p id="strLabel" class="text-[10px] mt-1 text-slate-600"></p>
+                </div>
+                <!-- Confirm -->
+                <div class="mb-5">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔑 Confirm Password *</label>
+                    <input id="regConfirm" type="password" placeholder="Repeat password"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+
+                <!-- Alerts -->
+                <div id="regError" class="hidden mb-4 px-4 py-3 bg-red-900/40 border border-red-700/60 rounded-xl">
+                    <p id="regErrorMsg" class="text-red-400 text-xs font-bold text-center"></p>
+                </div>
+                <div id="regOk" class="hidden mb-4 px-4 py-3 bg-emerald-900/40 border border-emerald-700/60 rounded-xl">
+                    <p class="text-emerald-400 text-xs font-bold text-center">✅ Account created! Redirecting to login...</p>
+                </div>
+
+                <button type="button" onclick="doRegister()" id="regBtn"
+                    class="w-full bg-orange-600 hover:bg-orange-700 active:scale-[.98] text-white font-black py-3.5 rounded-xl text-sm shadow-xl shadow-orange-600/30 transition-all cursor-pointer">
+                    🎉 Create Account
+                </button>
+                <p class="text-center text-slate-600 text-[11px] mt-3">
+                    Already have an account?
+                    <button type="button" onclick="goTo('viewLogin')" class="text-orange-400 font-bold cursor-pointer hover:text-orange-300">Sign In</button>
+                </p>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             VIEW 3 — FORGOT PASSWORD STEP 1  (Enter Username)
+        ════════════════════════════════════════════════════════ -->
+        <div id="viewFP1" class="view">
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl px-7 py-7 shadow-2xl shadow-black/60">
+                <div class="flex items-center gap-3 mb-4">
+                    <button type="button" onclick="goTo('viewLogin')" class="text-slate-500 hover:text-white text-xl cursor-pointer transition-colors">←</button>
+                    <div>
+                        <h2 class="text-white font-black text-base leading-tight">🔑 Forgot Password</h2>
+                        <p class="text-slate-500 text-[11px]">Reset your password via OTP</p>
+                    </div>
+                </div>
+                <!-- Progress -->
+                <div class="flex items-center gap-1.5 mb-6">
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <div class="step-bar flex-1 bg-slate-700"></div>
+                    <div class="step-bar flex-1 bg-slate-700"></div>
+                    <span class="text-[10px] text-slate-500 ml-1 shrink-0">Step 1/3</span>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">👤 Username</label>
+                    <input id="fpUser" type="text" placeholder="Enter your username"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+
+                <div id="fp1Err" class="hidden mb-4 px-4 py-3 bg-red-900/40 border border-red-700/60 rounded-xl">
+                    <p id="fp1ErrMsg" class="text-red-400 text-xs font-bold text-center"></p>
+                </div>
+
+                <button type="button" onclick="fpNext1()"
+                    class="w-full bg-orange-600 hover:bg-orange-700 active:scale-[.98] text-white font-black py-3.5 rounded-xl text-sm shadow-xl shadow-orange-600/30 transition-all cursor-pointer">
+                    Next →
+                </button>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             VIEW 4 — FORGOT PASSWORD STEP 2  (Choose Method)
+        ════════════════════════════════════════════════════════ -->
+        <div id="viewFP2" class="view">
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl px-7 py-7 shadow-2xl shadow-black/60">
+                <div class="flex items-center gap-3 mb-4">
+                    <button type="button" onclick="goTo('viewFP1')" class="text-slate-500 hover:text-white text-xl cursor-pointer transition-colors">←</button>
+                    <div>
+                        <h2 class="text-white font-black text-base leading-tight">Choose Method</h2>
+                        <p class="text-slate-500 text-[11px]">Where would you like to receive your OTP code?</p>
+                    </div>
+                </div>
+                <!-- Progress -->
+                <div class="flex items-center gap-1.5 mb-5">
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <div class="step-bar flex-1 bg-slate-700"></div>
+                    <span class="text-[10px] text-slate-500 ml-1 shrink-0">Step 2/3</span>
+                </div>
+
+                <!-- Account preview -->
+                <div class="bg-slate-800/70 border border-slate-700/60 rounded-xl px-4 py-3 mb-5">
+                    <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-0.5">Account</p>
+                    <p class="text-white font-bold text-sm" id="fp2AccLabel">—</p>
+                </div>
+
+                <!-- Email option -->
+                <button type="button" id="cardEmail" onclick="pickMethod('email')"
+                    class="method-card w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3.5 mb-3 text-left cursor-pointer transition-all hover:border-slate-500">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl shrink-0">📧</span>
+                        <div class="min-w-0">
+                            <p class="text-white font-bold text-sm">Email Address</p>
+                            <p class="text-slate-500 text-[11px] truncate" id="fp2EmailLabel">—</p>
+                        </div>
+                        <div class="radio-outer ml-auto shrink-0 w-5 h-5 rounded-full border-2 border-slate-600 flex items-center justify-center">
+                            <div class="radio-dot w-2.5 h-2.5 rounded-full bg-transparent transition-colors"></div>
+                        </div>
+                    </div>
+                </button>
+
+                <!-- SMS option -->
+                <button type="button" id="cardSms" onclick="pickMethod('sms')"
+                    class="method-card w-full bg-slate-800 border-2 border-slate-700 rounded-xl px-4 py-3.5 mb-5 text-left cursor-pointer transition-all hover:border-slate-500">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl shrink-0">📱</span>
+                        <div class="min-w-0">
+                            <p class="text-white font-bold text-sm">SMS / Phone Number</p>
+                            <p class="text-slate-500 text-[11px] truncate" id="fp2SmsLabel">—</p>
+                        </div>
+                        <div class="radio-outer ml-auto shrink-0 w-5 h-5 rounded-full border-2 border-slate-600 flex items-center justify-center">
+                            <div class="radio-dot w-2.5 h-2.5 rounded-full bg-transparent transition-colors"></div>
+                        </div>
+                    </div>
+                </button>
+
+                <div id="fp2Err" class="hidden mb-4 px-4 py-3 bg-red-900/40 border border-red-700/60 rounded-xl">
+                    <p id="fp2ErrMsg" class="text-red-400 text-xs font-bold text-center"></p>
+                </div>
+
+                <button type="button" onclick="fpNext2()" id="fp2SendBtn"
+                    class="w-full bg-orange-600 hover:bg-orange-700 active:scale-[.98] text-white font-black py-3.5 rounded-xl text-sm shadow-xl shadow-orange-600/30 transition-all cursor-pointer">
+                    📤 Send OTP Code
+                </button>
+            </div>
+        </div>
+
+        <!-- ════════════════════════════════════════════════════════
+             VIEW 5 — FORGOT PASSWORD STEP 3  (OTP + New Password)
+        ════════════════════════════════════════════════════════ -->
+        <div id="viewFP3" class="view">
+            <div class="bg-slate-900/80 backdrop-blur-xl border border-slate-700/60 rounded-2xl px-7 py-7 shadow-2xl shadow-black/60">
+                <div class="flex items-center gap-3 mb-4">
+                    <button type="button" onclick="goTo('viewFP2')" class="text-slate-500 hover:text-white text-xl cursor-pointer transition-colors">←</button>
+                    <div>
+                        <h2 class="text-white font-black text-base leading-tight">Verify OTP</h2>
+                        <p class="text-slate-500 text-[11px]">Enter the code and set your new password</p>
+                    </div>
+                </div>
+                <!-- Progress -->
+                <div class="flex items-center gap-1.5 mb-4">
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <div class="step-bar flex-1 bg-orange-500"></div>
+                    <span class="text-[10px] text-slate-500 ml-1 shrink-0">Step 3/3</span>
+                </div>
+
+                <!-- OTP Display Box -->
+                <div class="bg-orange-950/40 border border-orange-700/40 rounded-xl px-4 py-4 mb-5 animate-slide-up">
+                    <div class="flex items-start justify-between mb-2">
+                        <div>
+                            <p class="text-[10px] text-orange-400 font-black uppercase tracking-widest">📨 Your OTP Code</p>
+                            <p id="fp3SentTo" class="text-[11px] text-slate-500 mt-0.5">—</p>
+                        </div>
+                        <button type="button" onclick="copyOtp(this)"
+                            class="shrink-0 bg-slate-700 hover:bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <div class="otp-digits otp-animate text-orange-300 text-center py-1" id="fp3OtpDisplay">——</div>
+                    <p class="text-slate-600 text-[10px] text-center mt-2">⏰ Valid for 5 minutes  •  <button type="button" onclick="resendOtp()" class="text-orange-500 hover:text-orange-400 font-bold cursor-pointer">Resend</button></p>
+                </div>
+
+                <!-- OTP Input -->
+                <div class="mb-4">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔢 Enter OTP Code</label>
+                    <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="● ● ● ● ● ●"
+                        class="w-full bg-slate-800 border border-slate-700 text-orange-300 placeholder-slate-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+
+                <!-- New Password -->
+                <div class="mb-3">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔒 New Password</label>
+                    <div class="relative">
+                        <input id="newPwd" type="password" placeholder="Minimum 8 characters"
+                            class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 pr-11 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                        <button type="button" onclick="togglePwd('newPwd','eyeNew')" id="eyeNew"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-sm cursor-pointer px-1">👁</button>
+                    </div>
+                </div>
+                <!-- Confirm New Password -->
+                <div class="mb-5">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">🔑 Confirm New Password</label>
+                    <input id="confirmPwd" type="password" placeholder="Repeat new password"
+                        class="w-full bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-600 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all">
+                </div>
+
+                <div id="fp3Err" class="hidden mb-4 px-4 py-3 bg-red-900/40 border border-red-700/60 rounded-xl">
+                    <p id="fp3ErrMsg" class="text-red-400 text-xs font-bold text-center"></p>
+                </div>
+
+                <button type="button" onclick="fpReset()" id="fp3ResetBtn"
+                    class="w-full bg-orange-600 hover:bg-orange-700 active:scale-[.98] text-white font-black py-3.5 rounded-xl text-sm shadow-xl shadow-orange-600/30 transition-all cursor-pointer">
+                    ✅ Reset Password
+                </button>
+            </div>
+        </div>
+
+        <p class="text-center text-slate-700 text-[10px] mt-5">© 2026 MTO Operations · All rights reserved</p>
+    </div><!-- /Wrapper -->
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         SCRIPT
+    ═══════════════════════════════════════════════════════════════ -->
+    <script>
+    'use strict';
+
+    // ── Keys ─────────────────────────────────────────────────────────
+    const SESSION_KEY  = 'mtoAuth_session_v1';
+    const USERS_KEY    = 'mtoAuth_users_v1';
+
+    // ── Built-in accounts (cannot be deleted, can be updated) ────────
+    const BUILTIN = {
+        admin      : { password:'MTO@2026',   role:'Administrator', name:'System Admin',   email:'admin@mto.sys',      phone:'09000000001' },
+        supervisor : { password:'Super@2026', role:'Supervisor',    name:'MTO Supervisor', email:'supervisor@mto.sys', phone:'09000000002' },
+        operator   : { password:'Oper@2026',  role:'Operator',      name:'MTO Operator',   email:'operator@mto.sys',   phone:'09000000003' },
+    };
+
+    // ── Temp state for forgot-password flow ──────────────────────────
+    const FP = { username:'', method:'', otp:'', expiry:0 };
+
+    // ═════════════════════════════════════════════════════════════════
+    // USER STORE  (localStorage merge on top of BUILTIN)
+    // ═════════════════════════════════════════════════════════════════
+    function getUsers() {
+        let stored = {};
+        try { stored = JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch(e) {}
+        // Stored users override builtins (so password resets stick)
+        return Object.assign({}, BUILTIN, stored);
+    }
+
+    function persistUser(username, data) {
+        let stored = {};
+        try { stored = JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch(e) {}
+        stored[username] = data;
+        try { localStorage.setItem(USERS_KEY, JSON.stringify(stored)); } catch(e) {}
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // SESSION CHECK
+    // ═════════════════════════════════════════════════════════════════
+    (function checkSession() {
+        try {
+            const raw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
+            if (raw) {
+                const s = JSON.parse(raw);
+                if (s && s.loggedIn) window.location.replace('index.html');
+            }
+        } catch(e) {}
+    })();
+
+    // ═════════════════════════════════════════════════════════════════
+    // VIEW NAVIGATION
+    // ═════════════════════════════════════════════════════════════════
+    function goTo(viewId) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        window.scrollTo({ top:0, behavior:'smooth' });
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // HELPERS
+    // ═════════════════════════════════════════════════════════════════
+    function togglePwd(inputId, btnId) {
+        const inp = document.getElementById(inputId);
+        const btn = document.getElementById(btnId);
+        const isHidden = inp.type === 'password';
+        inp.type      = isHidden ? 'text'    : 'password';
+        btn.textContent = isHidden ? '🙈' : '👁';
+    }
+
+    function showAlert(divId, msgId, msg) {
+        document.getElementById(msgId).textContent = msg;
+        document.getElementById(divId).classList.remove('hidden');
+    }
+    function hideAlert(divId) {
+        document.getElementById(divId).classList.add('hidden');
+    }
+
+    function maskEmail(e) {
+        if (!e) return '(no email)';
+        const [l, d] = e.split('@');
+        if (!d) return e;
+        return l.slice(0,2) + '***@' + d;
+    }
+    function maskPhone(p) {
+        if (!p) return '(no phone)';
+        const s = p.replace(/\s/g,'');
+        return s.slice(0,3) + '****' + s.slice(-3);
+    }
+
+    function shakeBtn(id) {
+        const b = document.getElementById(id);
+        if (!b) return;
+        b.classList.remove('animate-shake');
+        void b.offsetWidth;
+        b.classList.add('animate-shake');
+        b.addEventListener('animationend', () => b.classList.remove('animate-shake'), { once:true });
+    }
+
+    function genOtp() { return String(Math.floor(100000 + Math.random() * 900000)); }
+
+    // ═════════════════════════════════════════════════════════════════
+    // PASSWORD STRENGTH
+    // ═════════════════════════════════════════════════════════════════
+    const STR_COLORS = ['','#ef4444','#f97316','#eab308','#22c55e'];
+    const STR_LABELS = ['','Weak 😟','Fair 😐','Strong 💪','Very Strong! 🔥'];
+
+    function evalStrength() {
+        const v = document.getElementById('regPwd').value;
+        let s = 0;
+        if (v.length >= 8)         s++;
+        if (/[A-Z]/.test(v))       s++;
+        if (/[0-9]/.test(v))       s++;
+        if (/[^A-Za-z0-9]/.test(v)) s++;
+        for (let i = 1; i <= 4; i++) {
+            const bar = document.getElementById('sb'+i);
+            bar.style.backgroundColor = i <= s ? STR_COLORS[s] : '#334155';
+        }
+        const lbl = document.getElementById('strLabel');
+        lbl.textContent  = STR_LABELS[s];
+        lbl.style.color  = STR_COLORS[s] || '#64748b';
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // LOGIN
+    // ═════════════════════════════════════════════════════════════════
+    function doLogin() {
+        const uname = document.getElementById('loginUsername').value.trim().toLowerCase();
+        const pwd   = document.getElementById('loginPassword').value;
+        hideAlert('loginError');
+
+        if (!uname || !pwd) {
+            showAlert('loginError','loginErrorMsg','⚠️ Please enter your username and password.');
+            shakeBtn('loginBtn');
+            return;
+        }
+
+        setLoginBusy(true);
+
+        setTimeout(() => {
+            const users = getUsers();
+            const user  = users[uname];
+
+            if (!user || user.password !== pwd) {
+                setLoginBusy(false);
+                showAlert('loginError','loginErrorMsg','❌ Incorrect username or password. Please try again.');
+                shakeBtn('loginBtn');
+                document.getElementById('loginPassword').value = '';
+                document.getElementById('loginPassword').focus();
+                return;
+            }
+
+            const session = {
+                loggedIn:true, username:uname,
+                name: user.name, role: user.role,
+                loginTime: new Date().toISOString()
+            };
+            const store = document.getElementById('rememberMe').checked ? localStorage : sessionStorage;
+            try { store.setItem(SESSION_KEY, JSON.stringify(session)); } catch(e) {}
+
+            const btn   = document.getElementById('loginBtn');
+            const label = document.getElementById('loginBtnLabel');
+            btn.classList.replace('bg-orange-600','bg-emerald-600');
+            label.innerHTML = '✅&nbsp; Logged in! Redirecting...';
+            setTimeout(() => window.location.href = 'index.html', 500);
+        }, 700);
+    }
+
+    function setLoginBusy(on) {
+        const btn   = document.getElementById('loginBtn');
+        const label = document.getElementById('loginBtnLabel');
+        btn.disabled    = on;
+        label.innerHTML = on ? '⏳&nbsp; Checking...' : '🚀&nbsp; Sign In';
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // REGISTER  (unlimited accounts)
+    // ═════════════════════════════════════════════════════════════════
+    function doRegister() {
+        hideAlert('regError');
+        hideAlert('regOk');
+
+        const name    = document.getElementById('regName').value.trim();
+        const uname   = document.getElementById('regUser').value.trim().toLowerCase().replace(/\s+/g,'');
+        const email   = document.getElementById('regEmail').value.trim();
+        const phone   = document.getElementById('regPhone').value.trim().replace(/\s/g,'');
+        const pwd     = document.getElementById('regPwd').value;
+        const confirm = document.getElementById('regConfirm').value;
+
+        // Validate
+        if (!name || !uname || !email || !phone || !pwd || !confirm) {
+            return showAlert('regError','regErrorMsg','⚠️ Please fill in all required fields marked with (*).');
+        }
+        if (uname.length < 3) {
+            return showAlert('regError','regErrorMsg','⚠️ Username must be at least 3 characters.');
+        }
+        if (!/^[a-z0-9_]+$/.test(uname)) {
+            return showAlert('regError','regErrorMsg','⚠️ Username: only letters, numbers, and underscore (_) allowed.');
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return showAlert('regError','regErrorMsg','⚠️ Invalid email address.');
+        }
+        if (!/^(\+?63|0)[9][0-9]{9}$/.test(phone)) {
+            return showAlert('regError','regErrorMsg','⚠️ Invalid phone number. Use format: 09XXXXXXXXX');
+        }
+        if (pwd.length < 8) {
+            return showAlert('regError','regErrorMsg','⚠️ Password must be at least 8 characters.');
+        }
+        if (pwd !== confirm) {
+            return showAlert('regError','regErrorMsg','⚠️ Passwords do not match!');
+        }
+
+        const users = getUsers();
+        if (users[uname]) {
+            return showAlert('regError','regErrorMsg','⚠️ The username "' + uname + '" is already taken. Please choose another.');
+        }
+
+        // Save
+        persistUser(uname, { password:pwd, role:'Operator', name, email, phone });
+
+        // Show success, clear form
+        document.getElementById('regOk').classList.remove('hidden');
+        ['regName','regUser','regEmail','regPhone','regPwd','regConfirm'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        evalStrength();
+
+        setTimeout(() => {
+            document.getElementById('regOk').classList.add('hidden');
+            goTo('viewLogin');
+        }, 2000);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // FORGOT PASSWORD — STEP 1  (Verify username exists)
+    // ═════════════════════════════════════════════════════════════════
+    function fpNext1() {
+        hideAlert('fp1Err');
+        const uname = document.getElementById('fpUser').value.trim().toLowerCase();
+        if (!uname) return showAlert('fp1Err','fp1ErrMsg','⚠️ Please enter your username.');
+
+        const users = getUsers();
+        const user  = users[uname];
+        if (!user)   return showAlert('fp1Err','fp1ErrMsg','❌ No account found for "' + uname + '".');
+
+        FP.username = uname;
+        FP.method   = '';
+
+        // Populate step-2 labels
+        document.getElementById('fp2AccLabel').textContent  = (user.name || uname) + '  (@' + uname + ')';
+        document.getElementById('fp2EmailLabel').textContent = maskEmail(user.email || '');
+        document.getElementById('fp2SmsLabel').textContent   = maskPhone(user.phone || '');
+
+        // Disable cards if contact info is missing
+        const emailCard = document.getElementById('cardEmail');
+        const smsCard   = document.getElementById('cardSms');
+        emailCard.classList.toggle('opacity-40',      !user.email);
+        emailCard.classList.toggle('pointer-events-none', !user.email);
+        smsCard.classList.toggle('opacity-40',        !user.phone);
+        smsCard.classList.toggle('pointer-events-none',   !user.phone);
+
+        // Reset radio selection
+        document.querySelectorAll('.method-card').forEach(c => c.classList.remove('selected'));
+
+        goTo('viewFP2');
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // FORGOT PASSWORD — STEP 2  (Pick email or SMS)
+    // ═════════════════════════════════════════════════════════════════
+    function pickMethod(method) {
+        FP.method = method;
+        document.querySelectorAll('.method-card').forEach(c => c.classList.remove('selected'));
+        document.getElementById(method === 'email' ? 'cardEmail' : 'cardSms').classList.add('selected');
+        hideAlert('fp2Err');
+    }
+
+    function fpNext2() {
+        hideAlert('fp2Err');
+        if (!FP.method) {
+            return showAlert('fp2Err','fp2ErrMsg','⚠️ Please select a method: Email or SMS.');
+        }
+
+        // Generate OTP
+        FP.otp    = genOtp();
+        FP.expiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+        const users = getUsers();
+        const user  = users[FP.username];
+
+        // Show OTP + where it was "sent"
+        displayOtp(user);
+        goTo('viewFP3');
+    }
+
+    function displayOtp(user) {
+        const dest = FP.method === 'email'
+            ? '📧 Email: ' + maskEmail(user ? user.email : '')
+            : '📱 SMS: '   + maskPhone(user ? user.phone : '');
+        document.getElementById('fp3SentTo').textContent     = dest;
+        document.getElementById('fp3OtpDisplay').textContent = FP.otp;
+        document.getElementById('otpInput').value = '';
+        // Restart animation
+        const el = document.getElementById('fp3OtpDisplay');
+        el.classList.remove('otp-animate');
+        void el.offsetWidth;
+        el.classList.add('otp-animate');
+    }
+
+    function resendOtp() {
+        FP.otp    = genOtp();
+        FP.expiry = Date.now() + 5 * 60 * 1000;
+        const users = getUsers();
+        displayOtp(users[FP.username]);
+        hideAlert('fp3Err');
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // FORGOT PASSWORD — STEP 3  (Verify OTP + set new password)
+    // ═════════════════════════════════════════════════════════════════
+    function fpReset() {
+        hideAlert('fp3Err');
+
+        const enteredOtp = document.getElementById('otpInput').value.trim();
+        const newPwd     = document.getElementById('newPwd').value;
+        const confirmPwd = document.getElementById('confirmPwd').value;
+
+        if (!enteredOtp || !newPwd || !confirmPwd) {
+            return showAlert('fp3Err','fp3ErrMsg','⚠️ Please fill in all fields.');
+        }
+        if (enteredOtp !== FP.otp) {
+            return showAlert('fp3Err','fp3ErrMsg','❌ Incorrect OTP code. Please check again or resend.');
+        }
+        if (Date.now() > FP.expiry) {
+            return showAlert('fp3Err','fp3ErrMsg','❌ OTP has expired (5 min). Please resend a new code.');
+        }
+        if (newPwd.length < 8) {
+            return showAlert('fp3Err','fp3ErrMsg','⚠️ Password must be at least 8 characters.');
+        }
+        if (newPwd !== confirmPwd) {
+            return showAlert('fp3Err','fp3ErrMsg','⚠️ Passwords do not match!');
+        }
+
+        // Update password in store
+        const users = getUsers();
+        const user  = Object.assign({}, users[FP.username], { password: newPwd });
+        persistUser(FP.username, user);
+        // Also update in-memory BUILTIN so login works immediately this session
+        if (BUILTIN[FP.username]) BUILTIN[FP.username].password = newPwd;
+
+        // Success flash
+        const btn = document.getElementById('fp3ResetBtn');
+        btn.disabled  = true;
+        btn.classList.replace('bg-orange-600','bg-emerald-600');
+        btn.innerHTML = '✅ Password Reset! Returning to login...';
+
+        setTimeout(() => {
+            // Reset state
+            Object.assign(FP, { username:'', method:'', otp:'', expiry:0 });
+            ['fpUser','otpInput','newPwd','confirmPwd'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            // Restore button
+            btn.disabled  = false;
+            btn.classList.replace('bg-emerald-600','bg-orange-600');
+            btn.innerHTML = '✅ Reset Password';
+            hideAlert('fp3Err');
+            goTo('viewLogin');
+        }, 1800);
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // OTP COPY BUTTON
+    // ═════════════════════════════════════════════════════════════════
+    function copyOtp(btn) {
+        if (!FP.otp) return;
+        const copy = () => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '✅ Copied!';
+            btn.disabled  = true;
+            setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(FP.otp).then(copy).catch(copy);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = FP.otp;
+            ta.style.position = 'fixed';
+            ta.style.opacity  = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(ta);
+            copy();
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // KEYBOARD — Enter key works on every view
+    // ═════════════════════════════════════════════════════════════════
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        const active = document.querySelector('.view.active');
+        if (!active) return;
+        const actions = {
+            viewLogin    : doLogin,
+            viewRegister : doRegister,
+            viewFP1      : fpNext1,
+            viewFP2      : fpNext2,
+            viewFP3      : fpReset,
+        };
+        const fn = actions[active.id];
+        if (fn) fn();
+    });
+    </script>
+</body>
+</html>

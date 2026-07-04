@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTO SYSTEM MONITORING</title>
+    
+    <!-- Link sa hiwalay na CSS -->
+    <link rel="stylesheet" href="style.css">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <!-- Highcharts para sa 3D Graphs -->
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/highcharts-3d.js"></script>
+    <!-- Chart.js para sa Attendance Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS para sa Excel Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- ✅ SESSION GUARD — redirect to login if not authenticated -->
+    <script>
+        (function() {
+            'use strict';
+            var KEY = 'mtoAuth_session_v1';
+            var raw = null;
+            try { raw = localStorage.getItem(KEY) || sessionStorage.getItem(KEY); } catch(e) {}
+            if (!raw) { window.location.replace('login.html'); return; }
+            try {
+                var s = JSON.parse(raw);
+                if (!s || !s.loggedIn) { window.location.replace('login.html'); }
+            } catch(e) { window.location.replace('login.html'); }
+        })();
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen font-sans">
+
+    <div class="flex flex-col md:flex-row h-screen overflow-hidden">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <aside class="w-full md:w-64 bg-white dark:bg-slate-950 p-6 flex flex-col space-y-4 border-r border-slate-200 dark:border-slate-800">
+            <div class="mb-2 flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl font-black text-orange-600 dark:text-orange-500 tracking-wider">🌟 MTO SYSTEM MONITORING</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">v2026 Core Executive</p>
+                </div>
+            </div>
+
+            <!-- USER INFO BAR -->
+            <div class="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800/30 mb-1">
+                <div id="userAvatarBox" class="flex-shrink-0 w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center text-white font-black text-sm">A</div>
+                <div class="flex-1 min-w-0">
+                    <p id="userDisplayName" class="text-xs font-black text-slate-800 dark:text-slate-200 truncate">System Admin</p>
+                    <p id="userRoleBadge" class="text-[10px] text-orange-600 dark:text-orange-400 font-bold truncate">Administrator</p>
+                </div>
+                <button
+                    id="logoutBtn"
+                    type="button"
+                    onclick="logout()"
+                    title="Mag-logout"
+                    class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors cursor-pointer text-base font-black"
+                >⏻</button>
+            </div>
+
+            <!-- THEME SWITCHER -->
+            <button id="themeToggleBtn" onclick="toggleTheme()" class="w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-xl bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 font-bold text-xs cursor-pointer border border-slate-300 dark:border-slate-700">
+                <span id="themeBtnIcon">🌙</span> <span id="themeBtnText">Dark Mode</span>
+            </button>
+            
+            <nav class="space-y-2 flex-1">
+                <button id="btnDashboard" class="w-full flex items-center space-x-2 py-2.5 px-4 rounded-xl bg-orange-600 text-white font-bold shadow-md shadow-orange-600/20 cursor-pointer">
+                    <span>📊 Dashboard Monitoring</span>
+                </button>
+                <button id="btnAttendance" class="w-full flex items-center space-x-2 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold hover:bg-orange-600 hover:text-white cursor-pointer">
+                    <span>📅 Attendance Monitoring</span>
+                </button>
+
+                <!-- LIVE EXCEL BUTTON -->
+                <button id="btnLiveExcel" onclick="openLiveExcelModal()" class="w-full flex items-center justify-between py-2 px-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 font-bold text-xs cursor-pointer transition-colors group">
+                    <span class="flex items-center gap-2">
+                        <span class="relative flex h-2 w-2 flex-shrink-0">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        📊 Live Excel Mode
+                    </span>
+                    <span id="liveExcelActiveBadge" class="hidden ml-1 px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-black truncate max-w-[80px]"></span>
+                </button>
+
+                <!-- LIVE LOCAL FILE SYNC STATUS — lalabas lang kapag may aktibong live-link -->
+                <div id="liveSyncStatusRow" class="hidden flex items-center justify-between px-3 py-1.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/40 rounded-lg text-[10px]">
+                    <span class="flex items-center gap-1.5 text-red-600 dark:text-red-400 font-bold truncate">
+                        <span class="relative flex h-1.5 w-1.5 flex-shrink-0">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                        </span>
+                        <span id="liveSyncStatusText" class="truncate">Live syncing...</span>
+                    </span>
+                    <button onclick="stopLiveFileWatchManually()" title="Itigil ang live sync" class="ml-1 flex-shrink-0 text-slate-400 hover:text-red-600 dark:hover:text-red-400 font-black cursor-pointer">⏹</button>
+                </div>
+            </nav>
+
+
+            <!-- FILE UPLOADER CONTROL -->
+            <div class="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                <label id="mainUploadBtnLabel" class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl cursor-pointer shadow-lg shadow-indigo-600/20 text-sm">
+                    📁 Mag-upload ng Excel / CSV
+                    <input type="file" id="csvFileInput" accept=".csv, .xlsx, .xls" class="hidden">
+                </label>
+                <button id="clearDataBtn" type="button" class="w-full text-center bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-xl cursor-pointer shadow-md shadow-red-600/20 text-xs">
+                    🗑️ DELETE FILE
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 overflow-y-auto p-6 bg-slate-50 dark:bg-slate-900">
+            
+            <!-- VIEW 1: DASHBOARD MONITORING -->
+            <section id="dashboardView" class="space-y-6">
+                <!-- METRICS COUNTER CARDS -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm">
+                        <p id="metric1Label" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total Volume</p>
+                        <p id="metric1Value" class="text-2xl font-black text-slate-900 dark:text-white mt-1">0</p>
+                    </div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm">
+                        <p id="metric2Label" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Allocated Qty</p>
+                        <p id="metric2Value" class="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">0</p>
+                    </div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm">
+                        <p id="metric3Label" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Shipped Total</p>
+                        <p id="metric3Value" class="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">0</p>
+                    </div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800/80 shadow-sm">
+                        <p id="metric4Label" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Discrepancy</p>
+                        <p id="metric4Value" class="text-2xl font-black text-red-600 dark:text-red-400 mt-1">0</p>
+                    </div>
+                </div>
+
+                <!-- STATUS & TYPE SUMMARY CARDS -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- PENDING -->
+                    <div class="bg-amber-50 dark:bg-amber-950/30 p-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 shadow-sm flex items-center space-x-3">
+                        <div class="text-2xl">⏳</div>
+                        <div>
+                            <p class="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Total Pending</p>
+                            <p id="summaryPending" class="text-2xl font-black text-amber-700 dark:text-amber-300 mt-0.5">0</p>
+                        </div>
+                    </div>
+                    <!-- DONE -->
+                    <div class="bg-emerald-50 dark:bg-emerald-950/30 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 shadow-sm flex items-center space-x-3">
+                        <div class="text-2xl">✅</div>
+                        <div>
+                            <p class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Total Done</p>
+                            <p id="summaryDone" class="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-0.5">0</p>
+                        </div>
+                    </div>
+                    <!-- LOCAL -->
+                    <div class="bg-sky-50 dark:bg-sky-950/30 p-4 rounded-2xl border border-sky-200 dark:border-sky-800/60 shadow-sm flex items-center space-x-3">
+                        <div class="text-2xl">📦</div>
+                        <div>
+                            <p class="text-xs font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">Total Local</p>
+                            <p id="summaryLocal" class="text-2xl font-black text-sky-700 dark:text-sky-300 mt-0.5">0</p>
+                        </div>
+                    </div>
+                    <!-- HIGH VALUE -->
+                    <div class="bg-purple-50 dark:bg-purple-950/30 p-4 rounded-2xl border border-purple-200 dark:border-purple-800/60 shadow-sm flex items-center space-x-3">
+                        <div class="text-2xl">💎</div>
+                        <div>
+                            <p class="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Total High Value</p>
+                            <p id="summaryHighValue" class="text-2xl font-black text-purple-700 dark:text-purple-300 mt-0.5">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SERIES NUMBER SUMMARY PANEL — lalabas lang kapag RAW data ang na-load -->
+                <div id="seriesNumberPanel" class="hidden bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="text-2xl">🔢</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Series Number Summary</p>
+                                <p id="seriesDateSubtitle" class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">MTB Boxes per Series Number</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 flex-shrink-0">
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total MTB Boxes</p>
+                                <p id="seriesTotalBoxes" class="text-2xl font-black text-blue-600 dark:text-blue-400">0</p>
+                            </div>
+                            <div class="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">TOTAL PALLET</p>
+                                <p id="seriesUniqueCount" class="text-2xl font-black text-orange-600 dark:text-orange-400">0</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="seriesNumberList" class="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- LATEST DATE CARD WITH DATE PICKER -->
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="bg-indigo-50 dark:bg-indigo-950/30 p-4 rounded-2xl border border-indigo-200 dark:border-indigo-800/60 shadow-sm">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+
+                            <!-- LEFT: Latest Date Display -->
+                            <div class="flex items-center space-x-3">
+                                <div class="text-2xl">📅</div>
+                                <div>
+                                    <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Latest Date sa File</p>
+                                    <p id="latestDateLabel" class="text-xl font-black text-indigo-700 dark:text-indigo-300 mt-0.5">—</p>
+                                </div>
+                            </div>
+
+                            <!-- CENTER: Date Picker Search -->
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <div class="flex flex-col">
+                                    <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">🔍 Pumili ng Date</p>
+                                    <div class="flex items-center gap-2">
+                                        <input type="date" id="datePicker"
+                                            class="bg-white dark:bg-slate-900 border-2 border-indigo-300 dark:border-indigo-700 rounded-xl px-3 py-2 text-sm font-bold text-indigo-800 dark:text-indigo-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                                            disabled
+                                            onchange="searchByDate(this.value)">
+                                        <button onclick="clearDateSearch()"
+                                            id="clearDateBtn"
+                                            class="hidden bg-slate-200 dark:bg-slate-700 hover:bg-red-100 dark:hover:bg-red-900 text-slate-600 dark:text-slate-300 hover:text-red-600 font-bold px-3 py-2 rounded-xl text-xs cursor-pointer border border-slate-300 dark:border-slate-600">
+                                            ✕ I-clear
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT: Count Display -->
+                            <div class="text-right">
+                                <p class="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Total Records / Box on This Date</p>
+                                <p id="latestDateCount" class="text-xl font-black text-indigo-700 dark:text-indigo-300 mt-0.5">—</p>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HIGHCHARTS 3D GRAPH VISUALS -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 h-72 shadow-sm" id="chart1Container"></div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 h-72 shadow-sm" id="chart2Container"></div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 h-72 shadow-sm" id="chart3Container"></div>
+                </div>
+
+                <!-- CONTROL BAR -->
+                <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-4 items-center justify-between shadow-sm">
+                    <div class="w-full sm:w-1/2">
+                        <input type="text" id="searchBar" disabled placeholder="Mangyaring mag-upload muna ng data file..." class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-orange-500 disabled:opacity-50">
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                        <button id="btnExportDashboard" class="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl shadow-md cursor-pointer text-sm">
+                            <span>💾 I-save / I-download (CSV)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- MAIN DATA GRID TABLE -->
+                <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-md">
+                    <div class="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                        <h2 id="tableTitle" class="text-sm font-bold text-slate-700 dark:text-slate-300">Data Master List View</h2>
+                        <span id="rowCount" class="text-xs text-slate-500 dark:text-slate-400 font-mono">Walang aktibong record.</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-[400px]">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead id="tableHeader" class="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0 uppercase tracking-wider text-[11px] font-bold border-b border-slate-200 dark:border-slate-800 sticky-header">
+                                <tr>
+                                    <th class="py-3.5 px-4">Pangunahing Hanay</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300">
+                                <tr>
+                                    <td class="py-12 text-center text-slate-400 dark:text-slate-500">Magsimula sa pamamagitan ng pag-upload ng iyong tracking file.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW 2: INTERACTIVE ATTENDANCE MONITORING -->
+            <section id="attendanceView" class="hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Manual Attendance Logger -->
+                    <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-sm">
+                        <h3 class="font-bold text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider">Manual Attendance Logger</h3>
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Pangalan ng Empleyado</label>
+                            <input type="text" id="employeeName" placeholder="I-type ang buong pangalan..." class="w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="checkAttendance('In')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-xs cursor-pointer">🚪 Time In</button>
+                            <button onclick="checkAttendance('Out')" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 rounded-xl text-xs cursor-pointer">🚪 Time Out</button>
+                        </div>
+                        <div class="pt-4 border-t border-slate-200 dark:border-slate-800 grid grid-cols-2 gap-2 text-center">
+                            <div class="bg-slate-100 dark:bg-slate-900 p-2 rounded-xl"><p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Total Logs</p><p id="totalLogs" class="text-lg font-black text-slate-900 dark:text-white">0</p></div>
+                            <div class="bg-slate-100 dark:bg-slate-900 p-2 rounded-xl"><p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Active In</p><p id="activeUsers" class="text-lg font-black text-orange-600 dark:text-orange-400">0</p></div>
+                        </div>
+                    </div>
+
+                    <!-- Live Log Feed -->
+                    <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 md:col-span-2 overflow-hidden flex flex-col max-h-[290px] shadow-sm">
+                        <h3 class="font-bold text-sm text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">Live Log Feed Registry</h3>
+                        <div class="overflow-y-auto flex-1">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 sticky top-0 sticky-header"><tr class="border-b border-slate-200 dark:border-slate-800"><th class="p-2">Employee</th><th class="p-2">Date</th><th class="p-2">Time</th><th class="p-2">Action</th><th class="p-2 text-center">Aksyon</th></tr></thead>
+                                <tbody id="attendanceLog" class="divide-y divide-slate-200 dark:divide-slate-800/50"><tr id="noRecordRow"><td colspan="5" class="py-12 text-center text-slate-400 dark:text-slate-500">Walang manual record sa ngayon.</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Controller & Actions For Timesheet -->
+                <div id="rowActionsContainer" class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="flex flex-col sm:flex-row gap-4 justify-between items-center">
+                        <div id="employeeTabs" class="flex flex-wrap gap-2 items-center"></div>
+                        <div id="editorActions" class="flex gap-2 flex-wrap justify-end">
+                            <input type="text" id="newEmployeeName" placeholder="Bagong Pangalan..." class="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-800 dark:text-slate-200 w-36 focus:outline-none focus:border-indigo-500">
+                            <button onclick="addNewEmployee()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer">+ Empleyado</button>
+                            <button onclick="addNewRowToCurrentEmployee()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-300 dark:border-slate-700 cursor-pointer">+ Bagong Hanay</button>
+
+                            <!-- 📅 CALENDAR SET — pumili ng saklaw ng petsa (Mula–Hanggang); kusa nang
+                                 gagawa ito ng mga bagong hanay sa ibaba ng talahanayan, isa bawat araw
+                                 sa saklaw, kaya hindi na kailangang pindutin nang paulit-ulit ang
+                                 "+ Bagong Hanay". -->
+                            <div class="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5" title="Calendar Set — pumili ng Mula–Hanggang na petsa, kusa nang gagawa ito ng mga bagong hanay sa ibaba">
+                                <span class="text-xs" aria-hidden="true">📅</span>
+                                <input type="date" id="calendarSetFrom" aria-label="Mula" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] rounded-md px-1.5 py-1 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 w-[112px]">
+                                <span class="text-slate-400 text-xs">→</span>
+                                <input type="date" id="calendarSetTo" aria-label="Hanggang" class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] rounded-md px-1.5 py-1 text-slate-800 dark:text-slate-200 focus:outline-none focus:border-orange-500 w-[112px]">
+                                <button onclick="generateRowsFromCalendarSet()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-2.5 py-1.5 rounded-md text-xs cursor-pointer whitespace-nowrap">✓ Set</button>
+                            </div>
+
+                            <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer">📥 I-export Timesheet</button>
+
+                            <div class="w-px h-6 bg-slate-300 dark:bg-slate-700 mx-0.5 hidden sm:block"></div>
+
+                            <!-- 💾 SAVE — mabilis na manual save; awtomatiko na rin itong nadadagdag
+                                 bilang bagong entry sa Save File History (auto-labeled, walang prompt) -->
+                            <button onclick="manualSaveOnly()" title="I-save ang kasalukuyang datos — awtomatikong madadagdag din sa Save File History" class="bg-slate-600 hover:bg-slate-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center gap-1">💾 Save</button>
+
+                            <!-- 🔄 AUTOMATIC SAVE FILE — snapshot na naka-tag sa cutoff ng payroll (Ika-7 – Ika-22), direktang mapupunta sa Save File History -->
+                            <button onclick="autoSaveToHistory()" title="Automatic Save — isasave bilang bagong entry sa Save File History" class="bg-orange-600 hover:bg-orange-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center gap-1">🔄 Automatic Save</button>
+
+                            <!-- 🗂️ SAVE FILE HISTORY — buksan/tingnan ang mga naunang na-save, viewable sa loob mismo ng website -->
+                            <button onclick="openSaveHistoryModal()" title="Tingnan ang Save File History" class="relative bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer flex items-center gap-1">
+                                🗂️ Save File History
+                                <span id="saveHistoryCountBadge" class="hidden absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-black rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">0</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graphs Section -->
+                <div id="graphsSection" class="grid grid-cols-1 lg:grid-cols-3 gap-6 hidden">
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 h-96 relative shadow-sm" id="percentageChart"></div>
+                    <div class="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 h-96 relative md:col-span-2 shadow-sm"><canvas id="trend3dChart"></canvas></div>
+                </div>
+
+                <!-- Main Sheet Table View -->
+                <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-md">
+                    <div class="overflow-x-auto max-h-[400px]">
+                        <table id="csvDataTable" class="w-full text-left text-xs whitespace-nowrap hidden">
+                            <thead class="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 sticky top-0 uppercase font-black tracking-wider text-[10px] sticky-header"></thead>
+                            <tbody id="csvDataBody" class="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Salary/Computation Footer Summary -->
+                <div id="computationSummary" class="bg-gradient-to-r from-orange-500/10 to-indigo-500/10 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl hidden shadow-md">
+                    <h4 class="text-xs font-black text-orange-600 dark:text-orange-400 tracking-widest uppercase mb-4">🧮 Buong Buod ng Suweldo at Oras (Kasalukuyang Pinili)</h4>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="p-2"><p class="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase">Days Present</p><p id="sumDaysPresent" class="text-xl font-black text-slate-900 dark:text-white mt-1">0</p></div>
+                        <div class="p-2"><p class="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase">Basic Base Pay</p><p id="sumBasicSalary" class="text-xl font-black text-slate-900 dark:text-white mt-1">₱0.00</p></div>
+                        <div class="p-2"><p class="text-[11px] text-slate-500 dark:text-slate-400 font-bold uppercase">Total OT Hours</p><p id="sumOTHours" class="text-xl font-black text-sky-600 dark:text-sky-400 mt-1">0 hrs</p></div>
+                        <div class="p-2 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-300 dark:border-slate-700/50"><p class="text-[11px] text-orange-600 dark:text-orange-400 font-black uppercase">Gross Projected Pay</p><p id="sumGrossSalary" class="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">₱0.00</p></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+
+    <!-- ============================================================
+         📊 LIVE EXCEL MODAL — multi-sheet selector
+         ============================================================ -->
+    <div id="liveExcelModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg mx-4 overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                    <h2 class="text-lg font-black text-emerald-600 dark:text-emerald-400">📊 Live Excel Mode</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">I-upload ang Excel file, piliin ang sheet, i-load sa dashboard</p>
+                </div>
+                <button onclick="closeLiveExcelModal()" class="ml-4 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 font-black text-lg cursor-pointer transition-colors leading-none">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <!-- 🔗 GOOGLE SHEETS — Inirerekomenda kapag maraming computer ang titingin -->
+                <div class="border-2 border-blue-300 dark:border-blue-800/50 bg-blue-50 dark:bg-blue-950/20 rounded-xl p-4">
+                    <p class="text-xs font-black text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                        🔗 I-link mula sa Google Sheets
+                        <span class="font-bold px-1.5 py-0.5 bg-blue-600 text-white rounded text-[9px] tracking-wide">INIREREKOMENDA</span>
+                    </p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 mb-2">Gumagana sa lahat ng computer at browser nang sabay-sabay</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="googleSheetsUrlInput" placeholder="I-paste ang CSV URL mula sa 'Publish to web' dialog" class="flex-1 min-w-0 px-3 py-2 text-xs rounded-lg border border-blue-200 dark:border-blue-800/50 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 placeholder-slate-400">
+                        <button id="googleSheetsLinkBtn" type="button" onclick="linkGoogleSheetsUrl()" class="flex-shrink-0 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors">I-link</button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5">⚠️ <strong>Kailangan ang CSV URL mula sa "Publish to web" dialog</strong> (hindi ang URL sa address bar). Sa Google Sheets: File → Share → Publish to web → piliin ang sheet tab → CSV → Publish → kopyahin ang URL na lalabas.</p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+                    <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">O KAYA, EXCEL FILE</span>
+                    <div class="flex-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+                </div>
+
+                <!-- Dalawang paraan ng pag-upload ng Excel file -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- OPTION A: Live Link (File System Access API — Chrome/Edge lang) -->
+                    <button type="button" onclick="linkLiveLocalFile()" class="flex flex-col items-center justify-center gap-1 border-2 border-red-300 dark:border-red-800/50 bg-red-50 dark:bg-red-950/20 rounded-xl p-4 text-center hover:border-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors cursor-pointer">
+                        <div class="text-3xl">🔴</div>
+                        <p class="text-xs font-black text-red-700 dark:text-red-400">I-link nang Live</p>
+                        <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Isang computer lang • Chrome/Edge lang</p>
+                    </button>
+
+                    <!-- OPTION B: One-time snapshot upload (lahat ng browser) -->
+                    <label class="flex flex-col items-center justify-center gap-1 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 text-center cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-colors">
+                        <div class="text-3xl">📂</div>
+                        <p class="text-xs font-black text-slate-600 dark:text-slate-300">Minsan Lang Mag-upload</p>
+                        <p class="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">Manual i-upload ulit kada pagbabago • lahat ng browser</p>
+                        <input type="file" id="liveExcelFileInput" accept=".xlsx, .xls" class="hidden">
+                    </label>
+                </div>
+                <p id="liveExcelFileName" class="text-xs text-center font-bold text-slate-500 dark:text-slate-400 italic">Wala pang napiling file</p>
+
+                <!-- Sheet Selector — appears after file upload -->
+                <div id="liveExcelSheetSelector" class="hidden">
+                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">📋 Piliin ang Sheet na Gagamitin:</p>
+                    <div id="liveExcelSheetButtons" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1"></div>
+                </div>
+
+                <!-- Preview info — appears after sheet selection -->
+                <div id="liveExcelPreview" class="hidden bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <div class="text-2xl">📈</div>
+                    <div>
+                        <p id="liveExcelPreviewText" class="text-xs font-black text-emerald-700 dark:text-emerald-400"></p>
+                        <p id="liveExcelPreviewRows" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="flex gap-3 px-6 pb-6">
+                <button onclick="closeLiveExcelModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-3 rounded-xl text-sm cursor-pointer transition-colors">
+                    Kanselahin
+                </button>
+                <button id="liveExcelLoadBtn" onclick="loadSelectedExcelSheet()" disabled class="flex-[2] bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm cursor-pointer transition-colors flex items-center justify-center gap-2">
+                    <span>📥</span><span>I-load sa Dashboard</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         🎯 AUTO-DETECT RECORD MATCH MODAL — lalabas kapag eksaktong
+         tumugma ang na-type sa Search bar (hal. isang Box/MTB ID) sa
+         isang record sa kasalukuyang na-load na file (xlsx o Google Sheets).
+         ============================================================ -->
+    <div id="recordDetailModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-orange-200 dark:border-orange-800/40 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="text-3xl flex-shrink-0">🎯</div>
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-black text-orange-600 dark:text-orange-500">Auto-Detected Match</h2>
+                        <p id="recordDetailSubtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">—</p>
+                    </div>
+                </div>
+                <button onclick="closeRecordDetailModal()" class="ml-4 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 font-black text-lg cursor-pointer transition-colors leading-none">✕</button>
+            </div>
+
+            <!-- Body: dynamically injected match card(s) -->
+            <div id="recordDetailBody" class="p-6 space-y-4 overflow-y-auto"></div>
+
+            <!-- Footer -->
+            <div class="p-4 px-6 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <button onclick="closeRecordDetailModal()" class="w-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-sm cursor-pointer transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         🔴 DUPLICATE ID DETECTION MODAL — awtomatikong lumalabas kapag
+         may nakitang 2+ rows na magkaparehang MTB ID (o katumbas na
+         primary ID field ng fileType) pagkatapos mag-load ng data.
+         ============================================================ -->
+    <div id="duplicateDetectModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm hidden p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-red-300 dark:border-red-800/50 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 pb-4 border-b border-red-100 dark:border-red-900/40 flex-shrink-0 bg-red-50/60 dark:bg-red-950/20">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-xl flex-shrink-0">⚠️</div>
+                    <div class="min-w-0">
+                        <h2 class="text-base font-black text-red-700 dark:text-red-400">Duplicate IDs Detected!</h2>
+                        <p id="dupDetectSubtitle" class="text-xs text-red-500/80 dark:text-red-500/70 mt-0.5 truncate">—</p>
+                    </div>
+                </div>
+                <button onclick="closeDuplicateModal()" class="ml-4 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-200 dark:hover:bg-red-900/40 text-red-400 hover:text-red-600 font-black text-lg cursor-pointer transition-colors leading-none">✕</button>
+            </div>
+
+            <!-- Info strip -->
+            <div class="px-6 py-2.5 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-800/30 flex-shrink-0">
+                <p class="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">💡 I-check ang iyong Google Sheet o Excel file — ang mga ID na nakalista dito ay lumabas ng dalawa o higit pang beses sa kasalukuyang na-load na data.</p>
+            </div>
+
+            <!-- Body: dynamically injected group cards -->
+            <div id="dupDetectBody" class="p-6 space-y-4 overflow-y-auto flex-1"></div>
+
+            <!-- Footer -->
+            <div class="p-4 px-6 border-t border-slate-200 dark:border-slate-800 flex-shrink-0 flex gap-3">
+                <button onclick="closeDuplicateModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-sm cursor-pointer transition-colors">Isara</button>
+                <button onclick="closeDuplicateModal(); document.getElementById('searchBar').focus();" class="flex-[2] bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-sm cursor-pointer transition-colors flex items-center justify-center gap-2"><span>🔍</span><span>Hanapin sa Table</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating badge — palagi nakikita kapag may duplicates kahit sarado na ang modal -->
+    <div id="dupDetectBadge" class="fixed bottom-6 right-6 z-40 hidden">
+        <button onclick="showDuplicateModal(_currentDuplicateGroups)"
+                class="flex items-center gap-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold px-4 py-3 rounded-2xl shadow-2xl shadow-red-600/30 cursor-pointer transition-all">
+            <span class="text-lg">⚠️</span>
+            <div class="text-left leading-tight">
+                <p id="dupDetectBadgeText" class="text-xs font-black">0 Duplicate IDs</p>
+                <p class="text-[10px] opacity-75 font-medium">I-tap para tingnan →</p>
+            </div>
+        </button>
+    </div>
+
+    <!-- ============================================================
+         🗂️ SAVE FILE HISTORY MODAL — mga snapshot na ginawa ng "💾 Save"
+         (auto-labeled) o "🔄 Automatic Save" (custom label prompt), naka-tag
+         sa cutoff ng payroll (Ika-7 – Ika-22 ng buwan). Lahat ng view/detalye
+         dito ay nasa loob mismo ng website — walang kailangang i-download na file.
+         ============================================================ -->
+    <div id="saveHistoryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm hidden p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-indigo-200 dark:border-indigo-800/40 w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between p-6 pb-4 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="text-3xl flex-shrink-0">🗂️</div>
+                    <div class="min-w-0">
+                        <h2 class="text-lg font-black text-indigo-600 dark:text-indigo-400">Save File History</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Payroll cutoff: Ika-7 – Ika-22 ng buwan (kasama ang kasunod na cutoff)</p>
+                    </div>
+                </div>
+                <button onclick="closeSaveHistoryModal()" class="ml-4 flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 font-black text-lg cursor-pointer transition-colors leading-none">✕</button>
+            </div>
+
+            <!-- LIST VIEW: lahat ng naka-save na entries -->
+            <div id="saveHistoryListView" class="flex flex-col overflow-hidden flex-1">
+                <div id="saveHistoryListBody" class="p-6 space-y-3 overflow-y-auto flex-1"></div>
+            </div>
+
+            <!-- DETAIL VIEW: buksan/tingnan ang isang partikular na save (hidden by default) -->
+            <div id="saveHistoryDetailView" class="hidden flex flex-col overflow-hidden flex-1">
+                <div class="px-6 pt-4 flex-shrink-0">
+                    <button onclick="showSaveHistoryListView()" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">⬅ Bumalik sa listahan</button>
+                </div>
+                <div class="p-6 pt-3 space-y-4 overflow-y-auto flex-1">
+                    <div>
+                        <h3 id="saveHistoryDetailTitle" class="text-base font-black text-slate-800 dark:text-slate-100">—</h3>
+                        <p id="saveHistoryDetailSubtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">—</p>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-center"><p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Empleyado</p><p id="saveHistoryDetailEmployees" class="text-lg font-black text-slate-900 dark:text-white">0</p></div>
+                        <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-center"><p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Days Present</p><p id="saveHistoryDetailDays" class="text-lg font-black text-slate-900 dark:text-white">0</p></div>
+                        <div class="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl text-center"><p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">OT Hours</p><p id="saveHistoryDetailOT" class="text-lg font-black text-sky-600 dark:text-sky-400">0 hrs</p></div>
+                        <div class="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-xl text-center border border-orange-200 dark:border-orange-800/40"><p class="text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase">Total Gross</p><p id="saveHistoryDetailGross" class="text-lg font-black text-emerald-600 dark:text-emerald-400">₱0.00</p></div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400"><tr><th class="p-2">Empleyado</th><th class="p-2 text-center">Rows</th><th class="p-2 text-center">Days Present</th><th class="p-2 text-center">OT Hrs</th><th class="p-2 text-right">Gross Pay</th></tr></thead>
+                            <tbody id="saveHistoryDetailTableBody" class="divide-y divide-slate-200 dark:divide-slate-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="flex gap-3 px-6 pb-6 pt-2 flex-shrink-0 border-t border-slate-200 dark:border-slate-800">
+                    <button onclick="showSaveHistoryListView()" class="flex-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-sm cursor-pointer transition-colors">Isara</button>
+                    <button id="saveHistoryRestoreBtn" class="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm cursor-pointer transition-colors flex items-center justify-center gap-2"><span>📂</span><span>I-load Ulit ang Save na Ito</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ginawa nating "javascript.js" para tumugma sa pangalan ng file mo -->
+    <script src="javascript.js"></script>
+</body>
+</html>
